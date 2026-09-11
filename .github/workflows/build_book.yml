@@ -1,4 +1,5 @@
 name: Build book
+run-name: "Build book ${{ inputs.leg || github.event_name }} ${{ inputs.racecar_run }}"
 
 on:
   push:
@@ -6,7 +7,24 @@ on:
     - main
   pull_request:
   workflow_dispatch:
+    inputs:
+      leg:
+        description: "baseline (uninstrumented) or instrumented (under chalk/curiosity)"
+        type: choice
+        options: [instrumented, baseline]
+        default: baseline
+      profile:
+        description: "CrashOverride chalk profile"
+        type: string
+        default: curiosity-tests-racecar
+      racecar_run:
+        description: "racecar correlation token, echoed into the run name"
+        type: string
+        default: ""
 
+
+env:
+  CHALK_ON: ${{ inputs.leg == 'instrumented' }}
 concurrency:
   group: ${{ github.ref }}  # Group runs by the ref (branch or PR)
   cancel-in-progress: true  # Cancel any ongoing runs in the same group
@@ -68,10 +86,12 @@ jobs:
           path: .lake
           key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
       - name: Upload website
+        continue-on-error: true   # racecar: scan/report/push step, must not fail the build
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
   deploy:
+    continue-on-error: true   # racecar: scan job other jobs need
     # Add a dependency to the build job
     needs: build
 
